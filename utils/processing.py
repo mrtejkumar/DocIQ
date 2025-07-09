@@ -64,7 +64,7 @@ def summarize_text(text):
     )
 
     try:
-        result = summarizer(prompt, max_length=300, min_length=100, do_sample=False)[0]['summary_text']
+        result = summarizer(prompt, max_new_tokens=512, do_sample=False)[0]['summary_text']
         return result
     except Exception as e:
         return f"⚠️ Summarization failed: {e}"
