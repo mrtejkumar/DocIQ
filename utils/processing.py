@@ -20,6 +20,36 @@ def extract_text(file, file_type):
     else:
         return "Unsupported file type"
 
+# Use an instruction-tuned model (abstractive)
+summarizer = pipeline("text2text-generation", model="google/flan-t5-base", tokenizer="google/flan-t5-base")
+
+
+def split_text(text, chunk_size=1500, overlap=200):
+    chunks = []
+    start = 0
+    while start < len(text):
+        chunk = text[start:start + chunk_size]
+        chunks.append(chunk)
+        start += chunk_size - overlap
+    return chunks
+
 def summarize_text(text):
-    summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
-    return summarizer(text[:1024], max_length=150, min_length=40, do_sample=False)[0]['summary_text']
+    instruction = (
+        "Summarize the purpose and structure of the following document in 3-5 sentences. "
+        "Focus on what the document is about, not just repeating its content.\n\n"
+    )
+
+    chunks = split_text(text)
+    summaries = []
+
+    for i, chunk in enumerate(chunks):
+        if len(chunk.strip()) < 100:
+            continue
+        prompt = instruction + chunk
+        try:
+            result = summarizer(prompt, max_new_tokens=200, do_sample=False)[0]['generated_text']
+            summaries.append(result)
+        except Exception as e:
+            summaries.append(f"⚠️ Error in chunk {i+1}: {e}")
+
+    return "\n\n".join(summaries)
