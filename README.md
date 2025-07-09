@@ -15,14 +15,14 @@ DocIQ is a Streamlit-based web application that allows you to:
 |------------------------|--------------------------------------------------------------------|
 | Multi-format Support   | Upload PDF, Word (.docx), text, CSV, or JSON files                 |
 | Text Extraction        | Extracts and displays text in a readable format                    |
-| AI Summarization       | Uses facebook/bart-large-cnn model to summarize content            |
+| AI Summarization       | Uses google/flan-t5-base with guided prompts to summarize content  |
 | Local Q&A              | Uses Mistral-7B-Instruct (GGUF format) via ctransformers           |
 | Embedding & Retrieval  | Uses all-MiniLM-L6-v2 for embedding & FAISS for similarity search  |
 | Offline Support        | No need for internet or OpenAI API keys                            |
 
 ---
 
-## 🗂️ Folder Structure
+## 💂 Folder Structure
 
 ```
 docIQ/
@@ -39,17 +39,19 @@ docIQ/
 
 ## 🧠 AI Models Used
 
-### 1. Summarization Model: `facebook/bart-large-cnn`
-- **Type:** Encoder-Decoder Transformer  
-- **Source:** Hugging Face - BART  
-- **Task:** Abstractive summarization  
+### 1. Summarization Model: `google/flan-t5-base`
+- **Type:** Instruction-tuned encoder-decoder model  
+- **Source:** Hugging Face - flan-t5-base  
+- **Task:** Abstractive summarization with guided prompts  
 - **Usage:**
     ```python
     from transformers import pipeline
-    summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
-    summary = summarizer(text[:1024], max_length=150, min_length=40)[0]['summary_text']
+    summarizer = pipeline("text2text-generation", model="google/flan-t5-base")
+    prompt = "Summarize the purpose of the following document: ..."
+    summarizer(prompt, max_new_tokens=200)
     ```
-- **Token Limit:** ~1024 tokens
+- **Token Limit:** ~2048 tokens input context  
+- **Why this model?:** More robust at generalizing across bullet points, paragraphs, lists, and mixed content. Performs well with prompts.
 
 ### 2. Embedding Model: `sentence-transformers/all-MiniLM-L6-v2`
 - **Type:** Sentence-level BERT-style embeddings  
@@ -101,7 +103,7 @@ docIQ/
 
 ---
 
-## 🧪 Example Usage
+## 🧚‍♂️ Example Usage
 
 - Upload a file (e.g. `timetable.pdf`)
 - See extracted content in the text area
@@ -128,7 +130,7 @@ docIQ/
 
 ---
 
-## 👨‍💻 Credits
+## 👨‍💼 Credits
 
 Created by **Tej Kumar Sahu** using open-source AI tools:
 
