@@ -4,6 +4,13 @@ import docx
 import json
 from transformers import pipeline
 
+# Load once
+summarizer = pipeline(
+    "summarization",
+    model="google/flan-t5-base", 
+    tokenizer="google/flan-t5-base"
+)
+
 def extract_text(file, file_type):
     if file_type == "pdf":
         with fitz.open(stream=file.read(), filetype="pdf") as doc:
@@ -20,36 +27,46 @@ def extract_text(file, file_type):
     else:
         return "Unsupported file type"
 
-# Use an instruction-tuned model (abstractive)
-summarizer = pipeline("text2text-generation", model="google/flan-t5-base", tokenizer="google/flan-t5-base")
+# def summarize_text(text):
+#     if len(text) > 20000:
+#         return "❌ Text too long to summarize. Please upload a smaller document (max ~3 pages or 20,000 characters)."
 
+#     instruction_prompt = (
+#         "You are an intelligent summarization assistant.\n\n"
+#         "Your job is to analyze the content below and generate a clear, structured summary:\n"
+#         "- If it's a timetable or schedule, list the key time blocks and what happens in each.\n"
+#         "- If it's a story, extract key events and the moral.\n"
+#         "- If it's a report or informative text, summarize key points and conclusions.\n\n"
+#         "Output should be well-formatted with headings, bullet points, and a goal/moral if applicable.\n\n"
+#         "Content:\n"
+#         f"{text.strip()}"
+#     )
 
-def split_text(text, chunk_size=1500, overlap=200):
-    chunks = []
-    start = 0
-    while start < len(text):
-        chunk = text[start:start + chunk_size]
-        chunks.append(chunk)
-        start += chunk_size - overlap
-    return chunks
-
+#     try:
+#         result = summarizer(instruction_prompt, max_length=512, min_length=100, do_sample=False)[0]['summary_text']
+#         return result
+#     except Exception as e:
+#         return f"⚠️ Summarization failed: {e}"
+    
 def summarize_text(text):
-    instruction = (
-        "Summarize the purpose and structure of the following document in 3-5 sentences. "
-        "Focus on what the document is about, not just repeating its content.\n\n"
+    if len(text) > 20000:
+        return "❌ Text too long to summarize. Please upload a smaller document (max ~3 pages or 20,000 characters)."
+
+    prompt = (
+        "You are an intelligent summarization assistant.\n\n"
+        "Your job is to analyze the content below and generate a clear, structured summary:\n"
+        "- If it's a timetable or schedule, provide the details what is this about and list the key time blocks and what happens in each.\n"
+        "- If it's a story, extract key events and the moral with proper headings.\n"
+        "- If it's a report or informative text, summarize key points and conclusions.\n\n"
+        "Output should be well-formatted with headings, bullet points, and a goal/moral if applicable.\n\n"
+        "Content:\n"
+        f"{text.strip()}"
     )
 
-    chunks = split_text(text)
-    summaries = []
+    try:
+        result = summarizer(prompt, max_length=300, min_length=100, do_sample=False)[0]['summary_text']
+        return result
+    except Exception as e:
+        return f"⚠️ Summarization failed: {e}"
 
-    for i, chunk in enumerate(chunks):
-        if len(chunk.strip()) < 100:
-            continue
-        prompt = instruction + chunk
-        try:
-            result = summarizer(prompt, max_new_tokens=200, do_sample=False)[0]['generated_text']
-            summaries.append(result)
-        except Exception as e:
-            summaries.append(f"⚠️ Error in chunk {i+1}: {e}")
 
-    return "\n\n".join(summaries)

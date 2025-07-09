@@ -7,59 +7,97 @@ from utils.qa import (
     load_local_llm,
     generate_answer
 )
+import time
 
-st.set_page_config(page_title="DocIQ - Doc Summarizer + QA", layout="wide")
-st.title("📚 DocIQ — AI-powered Document Summarizer & Q&A")
-st.caption("🚀 Created by Tej Kumar Sahu | Works offline using open-source models")
+st.set_page_config(page_title="DocIQ", layout="wide")
+st.title("📚 DocIQ - Your Document Intelligence Assistant")
+st.caption("🚀 Created by Tej Kumar Sahu | Works using open-source models")
 
-# File upload
-uploaded_file = st.file_uploader("📂 Upload a document", type=["pdf", "docx", "txt", "csv", "json"])
+# --- SESSION STATE INIT ---
+if "summary" not in st.session_state:
+    st.session_state["summary"] = ""
+if "show_summary" not in st.session_state:
+    st.session_state["show_summary"] = True
+if "chunks" not in st.session_state:
+    st.session_state["chunks"] = []
+if "embed_model" not in st.session_state:
+    st.session_state["embed_model"] = None
+if "index" not in st.session_state:
+    st.session_state["index"] = None
+if "chunk_embeddings" not in st.session_state:
+    st.session_state["chunk_embeddings"] = None
+
+# --- FILE/TEXT INPUT SECTION ---
+st.markdown("### 📤 Upload a Document or Paste Text")
+
+uploaded_file = st.file_uploader("Choose a file", type=["pdf", "docx", "txt", "csv", "json"])
+text_input = st.text_area("Or paste raw text below 👇", height=200)
+
+extracted_text = ""
 
 if uploaded_file:
     file_type = uploaded_file.name.split(".")[-1].lower()
-    text = extract_text(uploaded_file, file_type)
-    st.text_area("📄 Extracted Text", text[:3000], height=300)
+    extracted_text = extract_text(uploaded_file, file_type)
+elif text_input.strip() and st.button("📥 Submit Text"):
+    extracted_text = text_input.strip()
+
+if extracted_text:
+    st.markdown("### 📝 Extracted Text")
+    with st.expander("Click to view extracted text"):
+        st.text_area("Extracted Text", extracted_text[:3000], height=300, disabled=True)
 
     if st.button("🧠 Generate Summary"):
         with st.spinner("Generating summary..."):
-            summary = summarize_text(text)
-            st.subheader("📌 Summary")
-            st.write(summary)
+            st.session_state["summary"] = summarize_text(extracted_text)
+            st.session_state["show_summary"] = True
 
-    if st.button("🔎 Prepare for Q&A"):
-        with st.spinner("Indexing document..."):
-            chunks = [text[i:i+1000] for i in range(0, len(text), 1000)]
-            embed_model = get_embeddings_model()
-            index, chunk_embeddings = create_vector_store(chunks, embed_model)
+    if st.session_state["summary"]:
+        if st.button("👁️ Toggle Summary"):
+            st.session_state["show_summary"] = not st.session_state["show_summary"]
 
-            st.session_state['chunks'] = chunks
-            st.session_state['embed_model'] = embed_model
-            st.session_state['index'] = index
-            st.session_state['chunk_embeddings'] = chunk_embeddings
+        if st.session_state["show_summary"]:
+            st.markdown("### 📌 Summary")
+            st.markdown(st.session_state["summary"])
 
-            st.success("✅ Document ready for question answering!")
+    if st.button("🔎 Prepare for Question Answering"):
+        st.session_state["chunks"] = [extracted_text[i:i + 1000] for i in range(0, len(extracted_text), 1000)]
+        st.session_state["embed_model"] = get_embeddings_model()
+        st.session_state["index"], st.session_state["chunk_embeddings"] = create_vector_store(
+            st.session_state["chunks"],
+            st.session_state["embed_model"]
+        )
+        st.success("✅ Document indexed and ready for Q&A!")
 
-# QA Section
-if all(key in st.session_state for key in ['index', 'chunks', 'embed_model', 'chunk_embeddings']):
-    query = st.text_input("💬 Ask a question from the document:")
+# --- Q&A SECTION ---
+if st.session_state.get("index"):
+    st.markdown("### 💬 Ask a question about the document")
+    question = st.text_input("Your Question")
 
-    if query:
-        with st.spinner("Generating answer..."):
-            relevant_chunks = retrieve_chunks(
-                query,
-                st.session_state['chunks'],
-                st.session_state['embed_model'],
-                st.session_state['index'],
-                st.session_state['chunk_embeddings']
-            )
+    if st.button("🚀 Submit Question"):
+        with st.spinner("🔄 Submitting your question..."):
+            st.info("🧠 Analyzing document...")
+            time.sleep(0.5)
+            st.info("✂️ Tokenizing text...")
+            time.sleep(0.5)
+            st.info("📊 Creating vector representation...")
+            time.sleep(0.5)
 
-            # Cache the LLM to avoid reloading on every rerun
-            if 'llm' not in st.session_state:
-                st.session_state['llm'] = load_local_llm()
+            try:
+                chunks = retrieve_chunks(
+                    question,
+                    st.session_state["chunks"],
+                    st.session_state["embed_model"],
+                    st.session_state["index"],
+                    st.session_state["chunk_embeddings"]
+                )
 
-            llm = st.session_state['llm']
-            context = "\n".join(relevant_chunks)
-            answer = generate_answer(llm, context, query)
+                st.info("🤖 Generating answer… (Please wait)")
+                with st.spinner("⏳ This might take a few seconds..."):
+                    llm = load_local_llm()
+                    answer = generate_answer(llm, "\n".join(chunks), question)
+                    st.success("✅ Answer generated!")
 
-            st.subheader("🧠 Answer")
-            st.write(answer)
+                st.markdown("### 🧠 Answer")
+                st.write(answer)
+            except Exception as e:
+                st.error(f"❌ An error occurred: {e}")
